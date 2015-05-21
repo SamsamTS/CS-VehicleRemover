@@ -44,8 +44,15 @@ namespace VehicleRemover
         /// </summary>
         public static void LoadConfig()
         {
+            if (!File.Exists("VehicleRemover.xml"))
+            {
+                Debug.Log("Configuration file not found. Creating new configuration file.");
+                CreateConfig();
+                return;
+            }
+
             XmlSerializer xmlSerializer = new XmlSerializer(typeof(Vehicle[]));
-            Vehicle[] vehicles;
+            Vehicle[] vehicles = null;
 
             try
             {
@@ -55,31 +62,14 @@ namespace VehicleRemover
                     vehicles = xmlSerializer.Deserialize(stream) as Vehicle[];
                 }
             }
-            catch (FileNotFoundException)
-            {
-                Debug.Log("Configuration file not found. Creating new configuration file.");
-
-                List<Vehicle> list = new List<Vehicle>();
-
-                for (uint i = 0; i < PrefabCollection<VehicleInfo>.LoadedCount(); i++)
-                {
-                    VehicleInfo prefab = PrefabCollection<VehicleInfo>.GetLoaded(i);
-                    list.Add(new Vehicle { name = prefab.name, enabled = true });
-                }
-
-
-                using (FileStream stream = new FileStream("VehicleRemover.xml", FileMode.Create))
-                {
-                    xmlSerializer.Serialize(stream, list.ToArray());
-                }
-                return;
-            }
             catch (Exception e)
             {
                 // Couldn't deserialize (XML malformed?)
                 Debug.LogException(e);
                 return;
             }
+
+            if (vehicles == null) return;
 
             List<VehicleInfo> prefabList = new List<VehicleInfo>();
 
@@ -119,6 +109,32 @@ namespace VehicleRemover
                 VehicleInfo prefab = Singleton<VehicleManager>.instance.m_parkedVehicles.m_buffer[i].Info;
                 if (prefabList.Contains(prefab))
                     Singleton<VehicleManager>.instance.ReleaseParkedVehicle(i);
+            }
+        }
+
+        public static void CreateConfig()
+        {
+            XmlSerializer xmlSerializer = new XmlSerializer(typeof(Vehicle[]));
+            List<Vehicle> list = new List<Vehicle>();
+
+            for (uint i = 0; i < PrefabCollection<VehicleInfo>.PrefabCount(); i++)
+            {
+                VehicleInfo prefab = PrefabCollection<VehicleInfo>.GetPrefab(i);
+                list.Add(new Vehicle { name = prefab.name, enabled = true });
+            }
+
+            try
+            {
+                using (FileStream stream = new FileStream("VehicleRemover.xml", FileMode.Create))
+                {
+                    xmlSerializer.Serialize(stream, list.ToArray());
+                }
+            }
+            catch (Exception e)
+            {
+                DebugOutputPanel.AddMessage(ColossalFramework.Plugins.PluginManager.MessageType.Warning,
+                    "Couldn't create configuration file at \"" + Directory.GetCurrentDirectory() + "\"");
+                Debug.LogException(e);
             }
         }
 
