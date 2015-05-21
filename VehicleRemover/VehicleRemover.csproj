@@ -7,8 +7,8 @@
     <ProjectGuid>{C323E306-D11E-48A7-9620-121E4ADC4765}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>VehicleColorChanger</RootNamespace>
-    <AssemblyName>VehicleColorChanger</AssemblyName>
+    <RootNamespace>VehicleRemover</RootNamespace>
+    <AssemblyName>VehicleRemover</AssemblyName>
     <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile />

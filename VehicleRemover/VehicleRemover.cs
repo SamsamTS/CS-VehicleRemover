@@ -20,7 +20,7 @@ namespace VehicleRemover
 
         public string Description
         {
-            get { return "Remove specific vehicles"; }
+            get { return "Disable specific vehicles"; }
         }
         #endregion
 
