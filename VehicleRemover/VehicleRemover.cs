@@ -1,8 +1,10 @@
 ﻿using ICities;
 using UnityEngine;
 using ColossalFramework;
+using ColossalFramework.Plugins;
 
 using System;
+using System.Reflection;
 using System.Collections.Generic;
 using System.IO;
 using System.Xml.Serialization;
@@ -39,6 +41,24 @@ namespace VehicleRemover
         }
         #endregion
 
+        private const string modPrefix = "[Vehicle Remover] ";
+
+        public static void Message(string message)
+        {
+            DebugOutputPanel.AddMessage(PluginManager.MessageType.Message, modPrefix + message);
+        }
+
+        public static void Warning(string message)
+        {
+            DebugOutputPanel.AddMessage(PluginManager.MessageType.Warning, modPrefix + message);
+        }
+
+        public static void Log(string message)
+        {
+            Debug.Log(modPrefix + message);
+        }
+
+
         /// <summary>
         /// Load and apply the configuration file
         /// </summary>
@@ -46,10 +66,12 @@ namespace VehicleRemover
         {
             if (!File.Exists("VehicleRemover.xml"))
             {
-                Debug.Log("Configuration file not found. Creating new configuration file.");
+                Log("Configuration file not found. Creating new configuration file.");
                 CreateConfig();
                 return;
             }
+
+            Log("Loading configuration...");
 
             XmlSerializer xmlSerializer = new XmlSerializer(typeof(Vehicle[]));
             Vehicle[] vehicles = null;
@@ -65,13 +87,24 @@ namespace VehicleRemover
             catch (Exception e)
             {
                 // Couldn't deserialize (XML malformed?)
+                Warning("Couldn't load configuration (XML malformed?)");
                 Debug.LogException(e);
                 return;
             }
 
-            if (vehicles == null) return;
+            if (vehicles == null)
+            {
+                Warning("Couldn't load configuration (vehicle list is null)");
+                return;
+            }
 
             List<VehicleInfo> prefabList = new List<VehicleInfo>();
+
+            // Instead of destroying the prefab, service is removed.
+            ItemClass itemClass = new ItemClass();
+            itemClass.m_service = ItemClass.Service.None;
+            itemClass.m_subService = ItemClass.SubService.None;
+            itemClass.m_level = ItemClass.Level.None;
 
             // Disable prefabs
             for (int i = 0; i < vehicles.Length; i++)
@@ -82,20 +115,24 @@ namespace VehicleRemover
 
                 if (prefab != null)
                 {
-                    ItemClass itemClass = new ItemClass();
-                    itemClass.m_service = ItemClass.Service.None;
-                    itemClass.m_subService = ItemClass.SubService.None;
-                    itemClass.m_level = ItemClass.Level.None;
-
                     prefab.m_class = itemClass;
-
                     prefabList.Add(prefab);
+                    Log("Disabled vehicle: " + vehicles[i].name);
+                }
+                else
+                {
+                    Log("Couldn't disable vehicle: " + vehicles[i].name);
                 }
             }
 
             if (prefabList.Count == 0) return;
 
-            // Remove existing vehicles
+            // IPT compatibility fix
+            typeof(VehicleManager).GetField("m_transferVehiclesDirty", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(
+                Singleton<VehicleManager>.instance, true);
+
+
+            // Remove existing vehicle instances
             for (ushort i = 0; i < Singleton<VehicleManager>.instance.m_vehicles.m_size; i++)
             {
                 VehicleInfo prefab = Singleton<VehicleManager>.instance.m_vehicles.m_buffer[i].Info;
@@ -103,13 +140,15 @@ namespace VehicleRemover
                     Singleton<VehicleManager>.instance.ReleaseVehicle(i);
             }
 
-            // Remove existing parked vehicles
+            // Remove existing parked vehicle instances
             for (ushort i = 0; i < Singleton<VehicleManager>.instance.m_parkedVehicles.m_size; i++)
             {
                 VehicleInfo prefab = Singleton<VehicleManager>.instance.m_parkedVehicles.m_buffer[i].Info;
                 if (prefabList.Contains(prefab))
                     Singleton<VehicleManager>.instance.ReleaseParkedVehicle(i);
             }
+
+            Message("Configuration loaded (" + prefabList.Count + " vehicle(s) disabled)");
         }
 
         public static void CreateConfig()
@@ -120,7 +159,15 @@ namespace VehicleRemover
             for (uint i = 0; i < PrefabCollection<VehicleInfo>.PrefabCount(); i++)
             {
                 VehicleInfo prefab = PrefabCollection<VehicleInfo>.GetPrefab(i);
-                list.Add(new Vehicle { name = prefab.name, enabled = true });
+                if(prefab != null)
+                    list.Add(new Vehicle { name = prefab.name, enabled = true });
+            }
+
+            // The list shouldn't be empty
+            if(list.Count == 0)
+            {
+                Warning("Couldn't create configuration (PrefabCollection is empty)");
+                return;
             }
 
             try
@@ -132,10 +179,11 @@ namespace VehicleRemover
             }
             catch (Exception e)
             {
-                DebugOutputPanel.AddMessage(ColossalFramework.Plugins.PluginManager.MessageType.Warning,
-                    "Couldn't create configuration file at \"" + Directory.GetCurrentDirectory() + "\"");
+                Warning("Couldn't create configuration file at \"" + Directory.GetCurrentDirectory() + "\"");
                 Debug.LogException(e);
             }
+
+            Message("Configuration file created at \"" + Directory.GetCurrentDirectory() + "\"");
         }
 
         public struct Vehicle
